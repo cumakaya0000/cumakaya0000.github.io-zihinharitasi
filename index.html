@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZihinMap - Zihin Haritası Oluşturucu</title>
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>tailwind.config={theme:{extend:{colors:{primary:'#4F9CF9',secondary:'#FFA41B'},borderRadius:{'none':'0px','sm':'4px',DEFAULT:'8px','md':'12px','lg':'16px','xl':'20px','2xl':'24px','3xl':'32px','full':'9999px','button':'8px'}}}}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.6.0/remixicon.min.css">
+<style>
+:where([class^="ri-"])::before { content: "\f3c2"; }
+body {
+font-family: 'Inter', sans-serif;
+overflow: hidden;
+}
+.mindmap-node {
+cursor: move;
+transition: transform 0.2s, box-shadow 0.2s;
+}
+.mindmap-node:hover {
+box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+transform: translateY(-2px);
+}
+.connection-line {
+stroke-width: 2;
+fill: none;
+}
+.zoom-control {
+user-select: none;
+}
+.zoom-button {
+cursor: pointer;
+}
+.sidebar-tool {
+transition: all 0.2s;
+}
+.sidebar-tool:hover {
+background-color: rgba(79, 156, 249, 0.1);
+}
+.canvas-container {
+background-image: radial-gradient(circle, #f9f9f9 1px, transparent 1px);
+background-size: 20px 20px;
+}
+</style>
+</head>
+<body class="bg-white h-screen flex flex-col">
+<!-- Üst Menü -->
+<header class="w-full h-14 border-b border-gray-200 flex items-center justify-between px-4 bg-white z-10">
+<div class="flex items-center">
+<a href="#" class="flex items-center">
+<span class="text-2xl font-['Pacifico'] text-primary">ZihinMap</span>
+</a>
+</div>
+<div class="flex items-center space-x-4">
+<div class="text-sm text-gray-500 flex items-center">
+<span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+Otomatik Kaydedildi
+</div>
+<div class="relative">
+<button id="export-btn" class="flex items-center px-3 py-2 text-sm bg-primary text-white rounded-button whitespace-nowrap">
+<div class="w-5 h-5 flex items-center justify-center mr-1">
+<i class="ri-download-line"></i>
+</div>
+Dışa Aktar
+</button>
+<div id="export-menu" class="hidden absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg z-50">
+<button onclick="exportAsPNG()" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center">
+<i class="ri-image-line mr-2"></i>PNG olarak indir
+</button>
+<button onclick="exportAsPDF()" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center rounded-b-lg">
+<i class="ri-file-pdf-line mr-2"></i>PDF olarak indir
+</button>
+</div>
+</div>
+<button class="flex items-center px-3 py-2 text-sm text-gray-700 border border-gray-200 rounded-button whitespace-nowrap">
+<div class="w-5 h-5 flex items-center justify-center mr-1">
+<i class="ri-home-line"></i>
+</div>
+Ana Sayfa
+</button>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<!-- Sol Kenar Çubuğu -->
+<div class="w-14 border-r border-gray-200 bg-white flex flex-col items-center py-4 z-10">
+<div id="add-node-btn" class="sidebar-tool w-10 h-10 flex items-center justify-center rounded-lg mb-4 bg-primary bg-opacity-10 cursor-pointer">
+<div class="w-6 h-6 flex items-center justify-center text-primary">
+<i class="ri-add-line"></i>
+</div>
+</div>
+<div class="sidebar-tool w-10 h-10 flex items-center justify-center rounded-lg mb-4">
+<div class="w-6 h-6 flex items-center justify-center text-gray-600">
+<i class="ri-layout-grid-line"></i>
+</div>
+</div>
+<div id="text-edit-btn" class="sidebar-tool w-10 h-10 flex items-center justify-center rounded-lg mb-4 cursor-pointer">
+<div class="w-6 h-6 flex items-center justify-center text-gray-600">
+<i class="ri-text-spacing"></i>
+</div>
+</div>
+<div id="color-palette-btn" class="sidebar-tool w-10 h-10 flex items-center justify-center rounded-lg mb-4 cursor-pointer">
+<div class="w-6 h-6 flex items-center justify-center text-gray-600">
+<i class="ri-palette-line"></i>
+</div>
+</div>
+<div class="sidebar-tool w-10 h-10 flex items-center justify-center rounded-lg mb-4">
+<div class="w-6 h-6 flex items-center justify-center text-gray-600">
+<i class="ri-arrow-go-back-line"></i>
+</div>
+</div>
+<div class="sidebar-tool w-10 h-10 flex items-center justify-center rounded-lg mb-4">
+<div class="w-6 h-6 flex items-center justify-center text-gray-600">
+<i class="ri-refresh-line"></i>
+</div>
+</div>
+</div>
+<div id="color-palette" class="hidden absolute left-16 top-20 bg-white p-4 rounded-lg shadow-lg z-20">
+  <div class="grid grid-cols-5 gap-2">
+
+    <!-- ANA RENKLER -->
+    <div class="w-6 h-6 rounded-full bg-[#FF0000]" data-color="#FF0000"></div> <!-- Kırmızı -->
+    <div class="w-6 h-6 rounded-full bg-[#0000FF]" data-color="#0000FF"></div> <!-- Mavi -->
+    <div class="w-6 h-6 rounded-full bg-[#FFFF00]" data-color="#FFFF00"></div> <!-- Sarı -->
+    <div class="w-6 h-6 rounded-full bg-[#00FF00]" data-color="#00FF00"></div> <!-- Yeşil -->
+    <div class="w-6 h-6 rounded-full bg-[#FF00FF]" data-color="#FF00FF"></div> <!-- Magenta -->
+    <div class="w-6 h-6 rounded-full bg-[#00FFFF]" data-color="#00FFFF"></div> <!-- Cyan -->
+    <div class="w-6 h-6 rounded-full bg-[#FFA500]" data-color="#FFA500"></div> <!-- Turuncu -->
+    <div class="w-6 h-6 rounded-full bg-[#800080]" data-color="#800080"></div> <!-- Mor -->
+    <div class="w-6 h-6 rounded-full bg-[#008000]" data-color="#008000"></div> <!-- Koyu Yeşil -->
+    <div class="w-6 h-6 rounded-full bg-[#000000]" data-color="#000000"></div> <!-- Siyah -->
+
+    <!-- GEÇİŞ RENKLERİ -->
+    <div class="w-6 h-6 rounded-full bg-[#FF6666]" data-color="#FF6666"></div> <!-- Kırmızıdan Pembe -->
+    <div class="w-6 h-6 rounded-full bg-[#FFCC66]" data-color="#FFCC66"></div> <!-- Turuncu geçiş -->
+    <div class="w-6 h-6 rounded-full bg-[#FFFF99]" data-color="#FFFF99"></div> <!-- Açık Sarı -->
+    <div class="w-6 h-6 rounded-full bg-[#CCFF99]" data-color="#CCFF99"></div> <!-- Yeşil geçiş -->
+    <div class="w-6 h-6 rounded-full bg-[#99FFCC]" data-color="#99FFCC"></div> <!-- Aqua geçiş -->
+    <div class="w-6 h-6 rounded-full bg-[#99CCFF]" data-color="#99CCFF"></div> <!-- Açık mavi -->
+    <div class="w-6 h-6 rounded-full bg-[#CCCCFF]" data-color="#CCCCFF"></div> <!-- Açık mor -->
+    <div class="w-6 h-6 rounded-full bg-[#FF99CC]" data-color="#FF99CC"></div> <!-- Pembe geçiş -->
+    <div class="w-6 h-6 rounded-full bg-[#FFB266]" data-color="#FFB266"></div> <!-- Somon tonu -->
+    <div class="w-6 h-6 rounded-full bg-[#D9B3FF]" data-color="#D9B3FF"></div> <!-- Açık lila -->
+
+    <!-- ARA RENKLER (PASTEL / SOFT) -->
+    <div class="w-6 h-6 rounded-full bg-[#F0E68C]" data-color="#F0E68C"></div> <!-- Pastel sarı -->
+    <div class="w-6 h-6 rounded-full bg-[#E6E6FA]" data-color="#E6E6FA"></div> <!-- Lavanta -->
+    <div class="w-6 h-6 rounded-full bg-[#AFEEEE]" data-color="#AFEEEE"></div> <!-- Açık camgöbeği -->
+    <div class="w-6 h-6 rounded-full bg-[#FFE4E1]" data-color="#FFE4E1"></div> <!-- Misty rose -->
+    <div class="w-6 h-6 rounded-full bg-[#98FB98]" data-color="#98FB98"></div> <!-- Soluk yeşil -->
+    <div class="w-6 h-6 rounded-full bg-[#DDA0DD]" data-color="#DDA0DD"></div> <!-- Orkide -->
+    <div class="w-6 h-6 rounded-full bg-[#40E0D0]" data-color="#40E0D0"></div> <!-- Turkuaz -->
+    <div class="w-6 h-6 rounded-full bg-[#FFDEAD]" data-color="#FFDEAD"></div> <!-- Navajo White -->
+    <div class="w-6 h-6 rounded-full bg-[#7FFFD4]" data-color="#7FFFD4"></div> <!-- Aquamarine -->
+    <div class="w-6 h-6 rounded-full bg-[#FFB6C1]" data-color="#FFB6C1"></div> <!-- Light Pink -->
+
+    <!-- SENİN ÖNCEKİLERDEN 10 FAVORİ -->
+    <div class="w-6 h-6 rounded-full bg-[#4F9CF9]" data-color="#4F9CF9"></div>
+    <div class="w-6 h-6 rounded-full bg-[#8DD3C7]" data-color="#8DD3C7"></div>
+    <div class="w-6 h-6 rounded-full bg-[#FBBC70]" data-color="#FBBC70"></div>
+    <div class="w-6 h-6 rounded-full bg-[#FC8D62]" data-color="#FC8D62"></div>
+    <div class="w-6 h-6 rounded-full bg-[#66C2A5]" data-color="#66C2A5"></div>
+    <div class="w-6 h-6 rounded-full bg-[#E78AC3]" data-color="#E78AC3"></div>
+    <div class="w-6 h-6 rounded-full bg-[#A6D854]" data-color="#A6D854"></div>
+    <div class="w-6 h-6 rounded-full bg-[#FFD92F]" data-color="#FFD92F"></div>
+    <div class="w-6 h-6 rounded-full bg-[#9370DB]" data-color="#9370DB"></div>
+    <div class="w-6 h-6 rounded-full bg-[#00CED1]" data-color="#00CED1"></div>
+
+  </div>
+</div>
+
+</div>
+<!-- Ana Çalışma Alanı -->
+<div class="flex-1 relative canvas-container" id="canvas">
+<!-- Zihin haritası düğümleri ve bağlantıları burada oluşturulacak -->
+</div>
+</div>
+<!-- Alt Kontrol Çubuğu -->
+<div class="absolute bottom-4 right-4 flex items-center bg-white rounded-lg shadow-md p-1 zoom-control">
+<button class="zoom-button w-8 h-8 flex items-center justify-center text-gray-600 rounded-l-lg hover:bg-gray-100" id="zoom-out">
+<i class="ri-subtract-line"></i>
+</button>
+<div class="px-2 text-sm text-gray-700 border-l border-r border-gray-200" id="zoom-level">100%</div>
+<button class="zoom-button w-8 h-8 flex items-center justify-center text-gray-600 rounded-r-lg hover:bg-gray-100" id="zoom-in">
+<i class="ri-add-line"></i>
+</button>
+</div>
+<script id="mindmap-init">
+document.addEventListener('DOMContentLoaded', function() {
+const canvas = document.getElementById('canvas');
+const zoomInBtn = document.getElementById('zoom-in');
+const zoomOutBtn = document.getElementById('zoom-out');
+const zoomLevelEl = document.getElementById('zoom-level');
+const exportBtn = document.getElementById('export-btn');
+const exportMenu = document.getElementById('export-menu');
+
+let history = [];
+let currentState = null;
+
+const saveState = () => {
+  const state = JSON.stringify({
+    center: mindmapData.center,
+    nodes: mindmapData.nodes
+  });
+  history.push(state);
+  if (history.length > 50) history.shift();
+  currentState = history.length - 1;
+};
+
+const undo = () => {
+  if (currentState > 0) {
+    currentState--;
+    const state = JSON.parse(history[currentState]);
+    mindmapData.center = state.center;
+    mindmapData.nodes = state.nodes;
+    createMindmap();
+  }
+};
+
+document.querySelector('.ri-arrow-go-back-line').parentElement.parentElement.addEventListener('click', undo);
+
+exportBtn.addEventListener('click', () => {
+  exportMenu.classList.toggle('hidden');
+});
+
+document.addEventListener('click', (e) => {
+  if (!exportBtn.contains(e.target) && !exportMenu.contains(e.target)) {
+    exportMenu.classList.add('hidden');
+  }
+});
+
+window.exportAsPNG = () => {
+  html2canvas(canvas).then(canvas => {
+    const link = document.createElement('a');
+    link.download = 'zihin-haritasi.png';
+    link.href = canvas.toDataURL();
+    link.click();
+  });
+};
+
+window.exportAsPDF = () => {
+  html2canvas(canvas).then(canvas => {
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({
+      orientation: 'landscape',
+      unit: 'px',
+      format: [canvas.width, canvas.height]
+    });
+    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+    pdf.save('zihin-haritasi.pdf');
+  });
+};
+const addNodeBtn = document.getElementById('add-node-btn');
+const textEditBtn = document.getElementById('text-edit-btn');
+const colorPaletteBtn = document.getElementById('color-palette-btn');
+const colorPalette = document.getElementById('color-palette');
+let selectedNode = null;
+let isEditing = false;
+const addNewNode = (parentId) => {
+const parent = parentId === 'main'
+? mindmapData.center
+: mindmapData.nodes.find(n => n.id === parentId);
+if (!parent) return;
+const nodeId = `node${mindmapData.nodes.length + 1}`;
+const offset = 150;
+const angle = Math.random() * Math.PI * 2;
+const newNode = {
+id: nodeId,
+text: 'Yeni Düğüm',
+color: parent.color,
+x: parent.x + offset * Math.cos(angle),
+y: parent.y + offset * Math.sin(angle),
+parentId: parentId
+};
+mindmapData.nodes.push(newNode);
+createMindmap();
+};
+addNodeBtn.addEventListener('click', () => {
+if (selectedNode) {
+addNewNode(selectedNode.id);
+} else {
+addNewNode('main');
+}
+});
+const enableTextEdit = (nodeEl, nodeData) => {
+if (isEditing) return;
+isEditing = true;
+const text = nodeEl.textContent;
+nodeEl.textContent = '';
+const input = document.createElement('input');
+input.type = 'text';
+input.value = text;
+input.className = 'bg-transparent border-none outline-none text-white text-center w-full';
+input.style.minWidth = '100px';
+nodeEl.appendChild(input);
+input.focus();
+const finishEditing = () => {
+if (!isEditing) return;
+nodeData.text = input.value;
+nodeEl.textContent = input.value;
+isEditing = false;
+};
+input.addEventListener('blur', finishEditing);
+input.addEventListener('keypress', (e) => {
+if (e.key === 'Enter') {
+finishEditing();
+}
+});
+};
+textEditBtn.addEventListener('click', () => {
+if (selectedNode) {
+const nodeEl = document.getElementById(selectedNode.id);
+enableTextEdit(nodeEl, selectedNode);
+}
+});
+colorPaletteBtn.addEventListener('click', () => {
+colorPalette.classList.toggle('hidden');
+});
+document.querySelectorAll('#color-palette [data-color]').forEach(colorEl => {
+colorEl.addEventListener('click', () => {
+if (selectedNode) {
+const color = colorEl.getAttribute('data-color');
+if (selectedNode.id === 'main') {
+mindmapData.center.color = color;
+} else {
+selectedNode.color = color;
+}
+createMindmap();
+colorPalette.classList.add('hidden');
+}
+});
+});
+document.addEventListener('click', (e) => {
+const isColorPaletteClick = e.target.closest('#color-palette');
+const isColorPaletteBtnClick = e.target.closest('#color-palette-btn');
+if (!isColorPaletteClick && !isColorPaletteBtnClick) {
+colorPalette.classList.add('hidden');
+}
+});
+const selectNode = (nodeEl, nodeData) => {
+if (selectedNode) {
+const prevSelectedEl = document.getElementById(selectedNode.id);
+if (prevSelectedEl) {
+prevSelectedEl.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.08)';
+}
+}
+selectedNode = nodeData;
+nodeEl.style.boxShadow = '0 0 0 2px #4F9CF9, 0 2px 6px rgba(0, 0, 0, 0.08)';
+};
+// Zihin haritası için başlangıç verileri
+const mindmapData = {
+center: {
+id: 'main',
+text: 'Ana Fikir',
+color: '#4F9CF9',
+x: 0,
+y: 0
+},
+nodes: [
+{
+id: 'node1',
+text: 'Alt Başlık 1',
+color: '#8DD3C7',
+x: -200,
+y: -100,
+parentId: 'main'
+},
+{
+id: 'node2',
+text: 'Alt Başlık 2',
+color: '#FBBC70',
+x: 200,
+y: -100,
+parentId: 'main'
+},
+{
+id: 'node3',
+text: 'Kavram 1',
+color: '#8DD3C7',
+x: -300,
+y: -180,
+parentId: 'node1'
+},
+{
+id: 'node4',
+text: 'Kavram 2',
+color: '#8DD3C7',
+x: -250,
+y: -20,
+parentId: 'node1'
+},
+{
+id: 'node5',
+text: 'Örnek 1',
+color: '#FBBC70',
+x: 150,
+y: -180,
+parentId: 'node2'
+},
+{
+id: 'node6',
+text: 'Örnek 2',
+color: '#FBBC70',
+x: 300,
+y: -50,
+parentId: 'node2'
+}
+]
+};
+// Zoom kontrolü
+let scale = 1;
+const updateZoom = () => {
+zoomLevelEl.textContent = `${Math.round(scale * 100)}%`;
+canvas.style.transform = `scale(${scale})`;
+};
+zoomInBtn.addEventListener('click', () => {
+if (scale < 2) {
+scale += 0.1;
+updateZoom();
+}
+});
+zoomOutBtn.addEventListener('click', () => {
+if (scale > 0.5) {
+scale -= 0.1;
+updateZoom();
+}
+});
+// Zihin haritasını oluştur
+const createMindmap = () => {
+// Canvas'ı temizle
+canvas.innerHTML = '';
+// SVG oluştur
+const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+svg.setAttribute('width', '100%');
+svg.setAttribute('height', '100%');
+svg.style.position = 'absolute';
+svg.style.zIndex = '1';
+canvas.appendChild(svg);
+// Bağlantı çizgilerini oluştur
+mindmapData.nodes.forEach(node => {
+if (node.parentId) {
+const parent = node.parentId === 'main'
+? mindmapData.center
+: mindmapData.nodes.find(n => n.id === node.parentId);
+if (parent) {
+const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+const startX = parent.x + canvas.offsetWidth / 2;
+const startY = parent.y + canvas.offsetHeight / 2;
+const endX = node.x + canvas.offsetWidth / 2;
+const endY = node.y + canvas.offsetHeight / 2;
+// Bezier eğrisi oluştur
+const dx = endX - startX;
+const dy = endY - startY;
+const controlX = startX + dx * 0.5;
+const controlY = startY + dy * 0.5;
+path.setAttribute('d', `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`);
+path.setAttribute('stroke', node.color);
+path.classList.add('connection-line');
+svg.appendChild(path);
+}
+}
+});
+// Ana düğümü oluştur
+const centerNode = document.createElement('div');
+centerNode.id = mindmapData.center.id;
+centerNode.classList.add('mindmap-node', 'absolute');
+centerNode.style.left = `calc(50% + ${mindmapData.center.x}px)`;
+centerNode.style.top = `calc(50% + ${mindmapData.center.y}px)`;
+centerNode.style.transform = 'translate(-50%, -50%)';
+centerNode.style.backgroundColor = mindmapData.center.color;
+centerNode.style.color = 'white';
+centerNode.style.padding = '12px 20px';
+centerNode.style.borderRadius = '8px';
+centerNode.style.fontWeight = '600';
+centerNode.style.zIndex = '2';
+centerNode.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
+centerNode.textContent = mindmapData.center.text;
+canvas.appendChild(centerNode);
+// Alt düğümleri oluştur
+mindmapData.nodes.forEach(node => {
+const nodeEl = document.createElement('div');
+nodeEl.id = node.id;
+nodeEl.classList.add('mindmap-node', 'absolute');
+nodeEl.style.left = `calc(50% + ${node.x}px)`;
+nodeEl.style.top = `calc(50% + ${node.y}px)`;
+nodeEl.style.transform = 'translate(-50%, -50%)';
+nodeEl.style.backgroundColor = node.color;
+nodeEl.style.color = 'white';
+nodeEl.style.padding = '8px 16px';
+nodeEl.style.borderRadius = '8px';
+nodeEl.style.fontWeight = '500';
+nodeEl.style.zIndex = '2';
+nodeEl.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.08)';
+nodeEl.textContent = node.text;
+canvas.appendChild(nodeEl);
+// Sürükle-bırak işlevselliği
+makeDraggable(nodeEl, node);
+});
+};
+// Sürükle-bırak işlevselliği
+const makeDraggable = (element, nodeData) => {
+let isDragging = false;
+let startX, startY;
+let originalX = nodeData.x;
+let originalY = nodeData.y;
+element.addEventListener('click', (e) => {
+if (!isDragging) {
+selectNode(element, nodeData);
+e.stopPropagation();
+}
+});
+element.addEventListener('mousedown', (e) => {
+isDragging = true;
+startX = e.clientX;
+startY = e.clientY;
+element.style.zIndex = '10';
+e.preventDefault();
+});
+document.addEventListener('mousemove', (e) => {
+if (!isDragging) return;
+const dx = (e.clientX - startX) / scale;
+const dy = (e.clientY - startY) / scale;
+nodeData.x = originalX + dx;
+nodeData.y = originalY + dy;
+element.style.left = `calc(50% + ${nodeData.x}px)`;
+element.style.top = `calc(50% + ${nodeData.y}px)`;
+// Bağlantı çizgilerini güncelle
+updateConnections();
+});
+document.addEventListener('mouseup', () => {
+if (isDragging) {
+isDragging = false;
+originalX = nodeData.x;
+originalY = nodeData.y;
+element.style.zIndex = '2';
+}
+});
+canvas.addEventListener('click', (e) => {
+if (e.target === canvas) {
+if (selectedNode) {
+const prevSelectedEl = document.getElementById(selectedNode.id);
+if (prevSelectedEl) {
+prevSelectedEl.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.08)';
+}
+selectedNode = null;
+}
+}
+});
+};
+// Bağlantı çizgilerini güncelle
+const updateConnections = () => {
+const svg = canvas.querySelector('svg');
+if (!svg) return;
+// Tüm yolları temizle
+svg.innerHTML = '';
+// Bağlantıları yeniden çiz
+mindmapData.nodes.forEach(node => {
+if (node.parentId) {
+const parent = node.parentId === 'main'
+? mindmapData.center
+: mindmapData.nodes.find(n => n.id === node.parentId);
+if (parent) {
+const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+const startX = parent.x + canvas.offsetWidth / 2;
+const startY = parent.y + canvas.offsetHeight / 2;
+const endX = node.x + canvas.offsetWidth / 2;
+const endY = node.y + canvas.offsetHeight / 2;
+// Bezier eğrisi oluştur
+const dx = endX - startX;
+const dy = endY - startY;
+const controlX = startX + dx * 0.5;
+const controlY = startY + dy * 0.5;
+path.setAttribute('d', `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`);
+path.setAttribute('stroke', node.color);
+path.classList.add('connection-line');
+svg.appendChild(path);
+}
+}
+});
+};
+// Pencere boyutu değiştiğinde bağlantıları güncelle
+window.addEventListener('resize', updateConnections);
+// Zihin haritasını oluştur
+createMindmap();
+});
+</script>
+</body>
+</html>
